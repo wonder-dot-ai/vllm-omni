@@ -905,6 +905,17 @@ class OmniOpenAIServingSpeech(OpenAIServing, AudioMixin):
             )
         return wav_np.tolist(), sr
 
+    async def _generate_pcm_chunks(self, generator, request_id: str):
+        """Alias for `_generate_audio_chunks` with response_format='pcm'.
+
+        v0.18.0 ships code paths that call this name from
+        serving_speech_stream.py (line 247) and from _generate_audio_chunks'
+        caller, but the method was never added. Fixed upstream on main,
+        re-applied here so v0.18.0 + our patches is self-consistent.
+        """
+        async for chunk in self._generate_audio_chunks(generator, request_id, "pcm"):
+            yield chunk
+
     async def _generate_audio_chunks(self, generator, request_id: str, response_format: str = "pcm"):
         """Generate audio chunks for streaming response.
 

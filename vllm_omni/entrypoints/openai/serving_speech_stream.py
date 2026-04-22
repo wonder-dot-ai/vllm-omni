@@ -38,8 +38,15 @@ from vllm_omni.entrypoints.openai.text_splitter import (
 
 logger = init_logger(__name__)
 
-_DEFAULT_IDLE_TIMEOUT = 30.0  # seconds
-_DEFAULT_CONFIG_TIMEOUT = 10.0  # seconds
+import os
+
+# 30 s is too tight when the client is another service that spends the
+# first 30–60 s on CUDA-graph capture / voice-embedding extraction and
+# doesn't send anything to us in the meantime. `VLLM_OMNI_STREAMING_IDLE_TIMEOUT_S`
+# overrides at import time; the default is bumped to 300 to cover
+# cold-start cases. Env-only so existing callers don't break.
+_DEFAULT_IDLE_TIMEOUT = float(os.environ.get("VLLM_OMNI_STREAMING_IDLE_TIMEOUT_S", "300"))
+_DEFAULT_CONFIG_TIMEOUT = float(os.environ.get("VLLM_OMNI_STREAMING_CONFIG_TIMEOUT_S", "10"))
 _PCM_SAMPLE_RATE = 24000
 _MAX_CONFIG_MESSAGE_SIZE = 4 * 1024 * 1024  # allow large ref_audio payloads
 _MAX_INPUT_TEXT_MESSAGE_SIZE = 128 * 1024
