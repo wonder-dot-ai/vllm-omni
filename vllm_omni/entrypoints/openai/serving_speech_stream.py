@@ -266,6 +266,27 @@ class OmniStreamingSpeechHandler:
                 except Exception:
                     logger.debug("Failed to abort streaming speech request %s", request_id, exc_info=True)
             raise
+        except RuntimeError as e:
+            # Starlette/uvicorn raises RuntimeError("Unexpected ASGI message
+            # 'websocket.send', after sending 'websocket.close' or response
+            # already completed.") when the peer closed the WS while we were
+            # mid-stream. Semantically equivalent to WebSocketDisconnect —
+            # treat it the same way: abort the engine request so the GPU
+            # stops generating frames nobody can hear, then propagate so
+            # the outer handler exits and the close ACK can flush back.
+            # Without this, the engine kept generating until the natural
+            # finish, holding the session-busy slot for ~10s and forcing
+            # the orchestrator's barge-in next-turn to retry.
+            if "websocket" not in str(e).lower():
+                # Some other RuntimeError — let the generic handler below
+                # see it.
+                raise
+            if request_id is not None:
+                try:
+                    await self._speech_service.engine_client.abort(request_id)
+                except Exception:
+                    logger.debug("Failed to abort streaming speech request %s", request_id, exc_info=True)
+            raise WebSocketDisconnect() from e
         except Exception as e:
             generation_failed = True
             logger.error("Generation failed for sentence %d: %s", sentence_index, e)
